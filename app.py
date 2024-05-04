@@ -21,6 +21,9 @@ def home_page():
 
 @app.route('/tweets')
 def show_tweets():
+    if "user_id" not in session:
+        flash("Please login first!")
+        return redirect('/')
     return render_template("tweets.html")
 
 @app.route('/register', methods=['GET', 'POST'])
@@ -32,6 +35,7 @@ def register_user():
         new_user = User.register(username, password)
         db.session.add(new_user)
         db.session.commit()
+        session['user_id'] = new_user.id
         # NOTE we are not handling error for non-unique usernames. To complete this, you should search the database for an existing user
         # with a matching username, and only add the new user to the database if there are no results. Otherwise, you should redirect
         # to the signup form with an error message.
@@ -46,9 +50,17 @@ def login_user():
         username = form.username.data
         password = form.password.data
 
-        u = User.authenticate(username, password)
-        if u:
+        user = User.authenticate(username, password)
+        if user:
+            flash(f"Welcome Back, {user.username}!")
+            session['user_id'] = user.id
             return redirect('/tweets')
         else:
             form.username.errors = ['Invalid username/password']
     return render_template('login.html', form=form)
+
+@app.route('/logout')
+def logout_user():
+    session.pop('user_id')
+    flash("Goodbye!")
+    return redirect('/')
