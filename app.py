@@ -2,6 +2,7 @@ from flask import Flask, request, render_template, redirect, session, flash
 from flask_debugtoolbar import DebugToolbarExtension
 from models import db, connect_db, User, Tweet
 from forms import UserForm, TweetForm
+from sqlalchemy.exc import IntegrityError
 
 app = Flask(__name__)
 
@@ -35,6 +36,21 @@ def show_tweets():
         return redirect('/tweets')
     return render_template("tweets.html", form=form, tweets=all_tweets)
 
+@app.route('/tweets/<int:id>', methods=["POST"])
+def delete_tweet(id):
+    """Delete tweet"""
+    if 'user_id' not in session:
+        flash("Please login first!")
+        return redirect('/login')
+    tweet = Tweet.query.get_or_404(id)
+    if tweet.user_id == session['user_id']:
+        db.session.delete(tweet)
+        db.session.commit()
+        flash("Tweet deleted!")
+        return redirect('/tweets')
+    flash("You don't have permission to delete this tweet!")
+    return redirect('/tweets')
+
 @app.route('/register', methods=['GET', 'POST'])
 def register_user():
     form = UserForm()
@@ -43,7 +59,12 @@ def register_user():
         password = form.password.data
         new_user = User.register(username, password)
         db.session.add(new_user)
-        db.session.commit()
+
+        try:
+            db.session.commit()
+        except IntegrityError:
+            form.username.errors.append('Username taken. Please pick another')
+            return render_template('register.html', form=form)
         session['user_id'] = new_user.id
         # NOTE we are not handling error for non-unique usernames. To complete this, you should search the database for an existing user
         # with a matching username, and only add the new user to the database if there are no results. Otherwise, you should redirect
